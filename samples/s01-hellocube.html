@@ -66,11 +66,16 @@ var g_eyePosition = [0, 0, 16];
 
 var g_transform;
 var g_world;
-var g_spring1 = true;
-var g_spring2 = true;
 var g_numSpringMarkers = 8;
-var g_markers;
 var g_markerScale = 0.1;
+
+Spring = function(enabled, parentTransform)
+{
+  this.enabled = enabled;
+  this.parentTransform = parentTransform;
+}
+
+var g_springs = [];
 
 /**
  * Creates the client area.
@@ -98,6 +103,7 @@ function main(clientElements) {
   initPhysics();
 
   g_client.setRenderCallback(render);
+  	document.body.onkeydown = handleKey;
 
   window.g_finished = true;  // for selenium testing.
 }
@@ -158,12 +164,12 @@ function createMaterial(baseColor) {
 function createShapes() {
   var cube = o3djs.primitives.createCube(
       g_pack,
-      createMaterial([0,1,1,1]),
+      createMaterial([0.0,0.2,1.0,1]),
       1.0);
 
   var springMarker = o3djs.primitives.createSphere(
       g_pack,
-      createMaterial([0,0.8,0.8,1]),
+      createMaterial([0.6,0.5,0.1,1]),
       0.5, 8, 8);
 
   var transform = g_pack.createObject('Transform');
@@ -171,17 +177,17 @@ function createShapes() {
   transform.parent = g_client.root;
   g_transform = transform;
 
-  g_markers = [ [], [] ];
   for (var s = 0; s < 2; s++)
   {
-    var m = g_markers[s];
+    var parentTransform = g_pack.createObject('Transform');
+    parentTransform.parent = g_client.root;
     for (var i = 0; i < g_numSpringMarkers; i++)
     {
       var transform = g_pack.createObject('Transform');
       transform.addShape(springMarker);
-      transform.parent = g_client.root;
-      m.push(transform);
+      parentTransform.addChild(transform);
     }
+    g_springs.push(new Spring(true, parentTransform));
   }
 }
 
@@ -196,9 +202,24 @@ function initPhysics()
   g_world.rigidBodies.push(body);
 }
 
+function handleKey(event)
+{
+	var k = event.keyCode;
+	if (k == '1'.charCodeAt(0))
+	{
+		g_springs[0].enabled = !g_springs[0].enabled;
+		g_springs[0].parentTransform.visible = g_springs[0].enabled;
+	}
+	if (k == '2'.charCodeAt(0))
+	{
+		g_springs[1].enabled = !g_springs[1].enabled;
+		g_springs[1].parentTransform.visible = g_springs[1].enabled;
+	}
+}
+
 function computeForces()
 {
-  if (g_spring1)
+  if (g_springs[0].enabled)
   {
     // Spring of length 0 from world -2,0,0 to object vertex -0.5,0.5,0.5
     var c = new Float3(-2,0,0);
@@ -219,7 +240,7 @@ function computeForces()
     b.torque.accum(t);
   }
 
-  if (g_spring2)
+  if (g_springs[1].enabled)
   {
     // Spring of length 0 from world 2,0,0 to object vertex 0.5,0.5,0.5
     var c = new Float3(2,0,0);
@@ -255,7 +276,7 @@ function render()
   o3d.Transform.compose(g_transform.localMatrix, b.R.getAsO3DMatrix4());
   g_transform.scale(b.l.x, b.l.y, b.l.z);
 
-  if (g_spring1)
+  if (g_springs[0].enabled)
   {
     var b = g_world.rigidBodies[0];	
     var p = b.l.mulScalar(0.5);      // point of force application in object
@@ -263,32 +284,32 @@ function render()
     p = b.R.mulVector(p);            // rotated by the object rotation
     var pw = p.add(b.x);             // p in world space
     var c = new Float3(-2,0,0);
-    var m = g_markers[0];
+    var transforms = g_springs[0].parentTransform.children;
     for (var i = 0; i < g_numSpringMarkers; i++)
     {
       var r = i / (g_numSpringMarkers-1);
       var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
 
-      var transform = m[i];
+      var transform = transforms[i];
       transform.identity();
       transform.translate(x.x, x.y, x.z);
       transform.scale(g_markerScale, g_markerScale, g_markerScale);
     }
   }
-  if (g_spring2)
+  if (g_springs[1].enabled)
   {
     var b = g_world.rigidBodies[0];	
     var p = b.l.mulScalar(0.5);      // point of force application in object
     p = b.R.mulVector(p);            // rotated by the object rotation
     var pw = p.add(b.x);             // p in world space
     var c = new Float3(2,0,0);
-    var m = g_markers[1];
+    var transforms = g_springs[1].parentTransform.children;
     for (var i = 0; i < g_numSpringMarkers; i++)
     {
       var r = i / (g_numSpringMarkers-1);
       var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
 
-      var transform = m[i];
+      var transform = transforms[i];
       transform.identity();
       transform.translate(x.x, x.y, x.z);
       transform.scale(g_markerScale, g_markerScale, g_markerScale);
