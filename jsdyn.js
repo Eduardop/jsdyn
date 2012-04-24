@@ -126,10 +126,20 @@ Matrix3.prototype.mulScalar = function(a)
 
 Matrix3.prototype.getAsArray4 = function()
 {
+  // Column-major, OpenGL style
 	return [ this.a00, this.a10, this.a20, 0,
 	         this.a01, this.a11, this.a21, 0,
 	         this.a02, this.a12, this.a22, 0,
 	         0,        0,        0,        1 ]; 
+}
+
+Matrix3.prototype.getAsO3DMatrix4 = function()
+{
+  // Column-major
+  return [ [ this.a00, this.a10, this.a20, 0 ],
+           [ this.a01, this.a11, this.a21, 0 ],
+           [ this.a02, this.a12, this.a22, 0 ],
+           [ 0,        0,        0,        1 ] ];
 }
 
 Float3.prototype.getSkewSymmMatrix = function()
