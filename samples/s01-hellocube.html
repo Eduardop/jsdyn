@@ -1,5 +1,5 @@
 <!--
-Copyright 2009, Google Inc.
+Copyright 2012, Eduardo Poyart.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -12,9 +12,6 @@ notice, this list of conditions and the following disclaimer.
 copyright notice, this list of conditions and the following disclaimer
 in the documentation and/or other materials provided with the
 distribution.
-    * Neither the name of Google Inc. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -30,18 +27,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
 <!--
-O3D Primitives
-
-This sample shows how to use the functions in the primitives utility library
-to make various shapes.
+Code partially based on the O3D Primitives sample, (c) 2009, Google Inc.
 -->
+
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
   "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <title>
-Primitives
+jsdyn sample 1: Hello, Cube
 </title>
 <script type="text/javascript" src="../3rdparty/o3d-webgl/base.js"></script>
 <script type="text/javascript" src="../3rdparty/o3djs/base.js"></script>
@@ -87,7 +82,7 @@ function main(clientElements) {
   // Set up the view and projection transformations.
   initContext();
 
-  // Add the shapes to the transform heirarchy.
+  // Add the shapes to the transform hierarchy.
   createShapes();
 
   // Init jsdyn
@@ -123,17 +118,16 @@ function initGlobals(clientElements) {
 function initContext() {
   // Set up a perspective transformation for the projection.
   g_viewInfo.drawContext.projection = g_math.matrix4.perspective(
-      g_math.degToRad(30), // 30 degree frustum.
-      g_o3dElement.clientWidth / g_o3dElement.clientHeight, // Aspect ratio.
-      1,                  // Near plane.
-      5000);              // Far plane.
+      g_math.degToRad(30),
+      g_o3dElement.clientWidth / g_o3dElement.clientHeight,
+      1, 5000);
 
   // Set up our view transformation to look towards the world origin where the
   // primitives are located.
   g_viewInfo.drawContext.view = g_math.matrix4.lookAt(
-      g_eyePosition,   // eye
-      [0, 0, 0],    // target
-      [0, 1, 0]);  // up
+      g_eyePosition,
+      [0, 0, 0],
+      [0, 1, 0]);
 }
 
 /**
@@ -240,13 +234,13 @@ function render()
   var b = g_world.rigidBodies[0];
   g_transform.translate(b.x.x, b.x.y, b.x.z);
   o3d.Transform.compose(g_transform.localMatrix, b.R.getAsO3DMatrix4());
-  //g_transform.scale(b.l.x / 2, b.l.y / 2, b.l.z / 2);
+  g_transform.scale(b.l.x, b.l.y, b.l.z);
 }
 
 </script>
 </head>
 <body onload="initClient()">
-<h1>Sample 1: Hello, Cube</h1>
+<h1>jsdyn sample 1: Hello, Cube</h1>
 <br/>
 <!-- Start of O3D plugin -->
 <div id="o3d" style="width: 800px; height: 600px;"></div>
