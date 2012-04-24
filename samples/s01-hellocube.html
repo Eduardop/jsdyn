@@ -62,6 +62,9 @@ var g_transform;
 var g_world;
 var g_spring1 = true;
 var g_spring2 = true;
+var g_numSpringMarkers = 8;
+var g_markers;
+var g_markerScale = 0.1;
 
 /**
  * Creates the client area.
@@ -150,81 +153,91 @@ function createShapes() {
   var cube = o3djs.primitives.createCube(
       g_pack,
       createMaterial([0,1,1,1]),
-      1.0);                  // The length of each side of the cube.
+      1.0);
 
-  // Add the shapes to the transforms.
-  var transformTable = [
-    {shape: cube, translation: [0, 0, 0]},
-  ];
+  var springMarker = o3djs.primitives.createSphere(
+      g_pack,
+      createMaterial([0,0.8,0.8,1]),
+      0.5, 8, 8);
 
-  for (var tt = 0; tt < transformTable.length; ++tt) {
-    var transform = g_pack.createObject('Transform');
-    transform.addShape(transformTable[tt].shape);
-    transform.translate(transformTable[tt].translation);
-    transform.parent = g_client.root;
-    g_transform = transform;
+  var transform = g_pack.createObject('Transform');
+  transform.addShape(cube);
+  transform.parent = g_client.root;
+  g_transform = transform;
+
+  g_markers = [ [], [] ];
+  for (var s = 0; s < 2; s++)
+  {
+    var m = g_markers[s];
+    for (var i = 0; i < g_numSpringMarkers; i++)
+    {
+      var transform = g_pack.createObject('Transform');
+      transform.addShape(springMarker);
+      transform.parent = g_client.root;
+      m.push(transform);
+    }
   }
 }
 
 function initPhysics()
 {
   g_world = new World();
-	var body = new RigidBody();
-	var pos = new Float3(0,0,0);
-	var rot = new Matrix3();
-	rot.setIdentity();
-	body.setBox(1, 1, 1, 1, pos, rot);
-	g_world.rigidBodies.push(body);
+  var body = new RigidBody();
+  var pos = new Float3(0,0,0);
+  var rot = new Matrix3();
+  rot.setIdentity();
+  body.setBox(1, 1, 1, 1, pos, rot);
+  g_world.rigidBodies.push(body);
 }
 
 function computeForces()
 {
-	if (g_spring1)
-	{
-		// Spring of length 0 from world -2,0,0 to object vertex -0.5,0.5,0.5
-		var c = new Float3(-2,0,0);
-		var b = g_world.rigidBodies[0];
-		var ks = 5.0;
-		var kd = ks / 15.0;
-		var p = b.l.mulScalar(0.5);      // point of force application in object
-		p.x = -p.x;
-		p = b.R.mulVector(p);            // rotated by the object rotation
-		var pw = p.add(b.x);             // p in world space
-		var x = c.sub(pw);               // spring extension
-		var f = x.mulScalar(ks);         // force in world space
-		var pdot = b.omega.cross(p);     // velocity of point of force application
-		pdot.accum(b.v);                 // add to velocity of center of mass
-		f.accumNeg(pdot.mulScalar(kd));  // damping component
-		var t = p.cross(f);              // torque
-		b.force.accum(f);
-		b.torque.accum(t);
-	}
+  if (g_spring1)
+  {
+    // Spring of length 0 from world -2,0,0 to object vertex -0.5,0.5,0.5
+    var c = new Float3(-2,0,0);
+    var b = g_world.rigidBodies[0];
+    var ks = 5.0;
+    var kd = ks / 15.0;
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p.x = -p.x;
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var x = c.sub(pw);               // spring extension
+    var f = x.mulScalar(ks);         // force in world space
+    var pdot = b.omega.cross(p);     // velocity of point of force application
+    pdot.accum(b.v);                 // add to velocity of center of mass
+    f.accumNeg(pdot.mulScalar(kd));  // damping component
+    var t = p.cross(f);              // torque
+    b.force.accum(f);
+    b.torque.accum(t);
+  }
 
-	if (g_spring2)
-	{
-		// Spring of length 0 from world 2,0,0 to object vertex 0.5,0.5,0.5
-		var c = new Float3(2,0,0);
-		var b = g_world.rigidBodies[0];
-		var ks = 5.0;
-		var kd = ks / 15.0;
-		var p = b.l.mulScalar(0.5);      // point of force application in object
-		p = b.R.mulVector(p);            // rotated by the object rotation
-		var pw = p.add(b.x);             // p in world space
-		var x = c.sub(pw);               // spring extension
-		var f = x.mulScalar(ks);         // force in world space
-		var pdot = b.omega.cross(p);     // velocity of point of force application
-		pdot.accum(b.v);                 // add to velocity of center of mass
-		f.accumNeg(pdot.mulScalar(kd));  // damping component
-		var t = p.cross(f);              // torque
-		b.force.accum(f);
-		b.torque.accum(t);
-	}
+  if (g_spring2)
+  {
+    // Spring of length 0 from world 2,0,0 to object vertex 0.5,0.5,0.5
+    var c = new Float3(2,0,0);
+    var b = g_world.rigidBodies[0];
+    var ks = 5.0;
+    var kd = ks / 15.0;
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var x = c.sub(pw);               // spring extension
+    var f = x.mulScalar(ks);         // force in world space
+    var pdot = b.omega.cross(p);     // velocity of point of force application
+    pdot.accum(b.v);                 // add to velocity of center of mass
+    f.accumNeg(pdot.mulScalar(kd));  // damping component
+    var t = p.cross(f);              // torque
+    b.force.accum(f);
+    b.torque.accum(t);
+  }
 }
 
 function step(dt)
 {
-	computeForces();
-	g_world.step(dt);
+  computeForces();
+  g_world.step(dt);
 }
 
 function render()
@@ -235,6 +248,46 @@ function render()
   g_transform.translate(b.x.x, b.x.y, b.x.z);
   o3d.Transform.compose(g_transform.localMatrix, b.R.getAsO3DMatrix4());
   g_transform.scale(b.l.x, b.l.y, b.l.z);
+
+  if (g_spring1)
+  {
+    var b = g_world.rigidBodies[0];	
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p.x = -p.x;
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var c = new Float3(-2,0,0);
+    var m = g_markers[0];
+    for (var i = 0; i < g_numSpringMarkers; i++)
+    {
+      var r = i / (g_numSpringMarkers-1);
+      var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
+
+      var transform = m[i];
+      transform.identity();
+      transform.translate(x.x, x.y, x.z);
+      transform.scale(g_markerScale, g_markerScale, g_markerScale);
+    }
+  }
+  if (g_spring2)
+  {
+    var b = g_world.rigidBodies[0];	
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var c = new Float3(2,0,0);
+    var m = g_markers[1];
+    for (var i = 0; i < g_numSpringMarkers; i++)
+    {
+      var r = i / (g_numSpringMarkers-1);
+      var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
+
+      var transform = m[i];
+      transform.identity();
+      transform.translate(x.x, x.y, x.z);
+      transform.scale(g_markerScale, g_markerScale, g_markerScale);
+    }
+  }
 }
 
 </script>
