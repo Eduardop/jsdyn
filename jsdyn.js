@@ -17,6 +17,11 @@ Float3.prototype.sub = function(v)
 	return new Float3(this.x - v.x, this.y - v.y, this.z - v.z);
 }
 
+Float3.prototype.negate = function()
+{
+  this.x = -this.x; this.y = -this.y; this.z = -this.z;
+}
+
 Float3.prototype.accum = function(v)
 {
 	this.x += v.x; this.y += v.y; this.z += v.z;
@@ -45,6 +50,11 @@ Float3.prototype.cross = function(v)
 Float3.prototype.dot = function(v)
 {
 	return this.x*v.x + this.y*v.y + this.z*v.z;
+}
+
+Float3.prototype.len = function()
+{
+	return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
 }
 
 Float3.prototype.normalize = function()
@@ -152,6 +162,29 @@ Float3.prototype.getSkewSymmMatrix = function()
 }
 
 
+function SpringEndPoint(body, x)
+{
+	// -----------------------------------------------------
+	// this.x;         float3    Position
+	// this.body       0 or RigidBody  0 if it's fixed in
+	//                                 world coordinates
+	// -----------------------------------------------------
+
+  this.x = x;
+  this.body = body;
+}
+
+function Spring(body1, x1, body2, x2, restLength, ks, kd)
+{
+  this.enabled = true;
+  this.endPoints = [];
+  this.endPoints[0] = new SpringEndPoint(body1, x1);
+  this.endPoints[1] = new SpringEndPoint(body2, x2);
+  this.restLength = restLength;
+  this.ks = ks;
+  this.kd = kd;
+}
+
 function RigidBody()
 {
 	// -----------------------------------------------------
@@ -193,8 +226,16 @@ RigidBody.prototype.integrateEuler = function(dt)
 	this.x.accum(this.v.mulScalar(dt));
 	var m = this.omega.getSkewSymmMatrix().mul(this.R);
 	this.R.accum(m.mulScalar(dt));
+	
 	this.P.accum(this.force.mulScalar(dt));
 	this.L.accum(this.torque.mulScalar(dt));
+
+	var kdf = this.v.mulScalar(g_world.kdl * dt);
+	kdf.negate();
+	this.P.accum(kdf);
+	var kdt = this.omega.mulScalar(g_world.kdw * dt);
+	kdt.negate();
+	this.L.accum(kdt);
 }
 
 RigidBody.prototype.renormalizeR = function()
@@ -234,11 +275,114 @@ function World()
 {
 	this.gravity = new Float3(0, -9.8, 0);
 	this.rigidBodies = [];
+	this.springs = [];
 	this.numSteps = 10;
+	this.kdl = 0.1; // linear damping
+ 	this.kdw = 0.1; // angular damping
 }
+
+var g_world = new World();
+
+World.prototype.computeSpringForces = function()
+{
+  for (springi in this.springs)
+  {
+    spr = this.springs[springi];
+    if (spr.enabled)
+    {
+      var x  = []; // Points of force application in object space
+      var xw = []; // Points of force application in world space
+      var v  = []; // Velocities of the points of force application
+      for (var i = 0; i < 2; i++)
+      {
+        if (spr.endPoints[i].body == 0)
+        {
+          xw[i] = spr.endPoints[i].x;
+          v[i] = new Float3(0,0,0);
+        }
+        else
+        {
+          var b = spr.endPoints[i].body;
+          x[i]  = spr.endPoints[i].x;  // point of force application in object
+          x[i]  = b.R.mulVector(x[i]); // rotated by the object rotation
+          xw[i] = x[i].add(b.x);       // x[i] in world space
+          v[i]  = b.omega.cross(x[i]); // velocity of point of force application
+          v[i].accum(b.v);             // add to velocity of center of mass
+        }
+      }
+      var sv = xw[1].sub(xw[0]);      // spring extension
+      var sl = sv.len();
+      var ext = sl - spr.restLength;
+      var f = sv.mulScalar(spr.ks * ext / sl);
+      var extdot = v[1].sub(v[0]);
+      f.accum(extdot.mulScalar(spr.kd));
+      
+      for (var i = 0; i < 2; i++)
+      {
+        var b = spr.endPoints[i].body;
+        if (b != 0)
+        {
+          if (i == 1)
+          {
+            f.negate();
+          }
+          var t = x[i].cross(f);
+          b.force.accum(f);
+          b.torque.accum(t);
+        }
+      }
+    }
+  }
+} 
+ 
+/*
+  if (g_springs[0].enabled)
+  {
+    // Spring of length 0 from world -2,0,0 to object vertex -0.5,0.5,0.5
+    var c = new Float3(-2,0,0);
+    var b = g_world.rigidBodies[0];
+    var ks = 5.0;
+    var kd = ks / 15.0;
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p.x = -p.x;
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var x = c.sub(pw);               // spring extension
+    var f = x.mulScalar(ks);         // force in world space
+    var pdot = b.omega.cross(p);     // velocity of point of force application
+    pdot.accum(b.v);                 // add to velocity of center of mass
+    f.accumNeg(pdot.mulScalar(kd));  // damping component
+    var t = p.cross(f);              // torque
+    b.force.accum(f);
+    b.torque.accum(t);
+  }
+
+  if (g_springs[1].enabled)
+  {
+    // Spring of length 0 from world 2,0,0 to object vertex 0.5,0.5,0.5
+    var c = new Float3(2,0,0);
+    var b = g_world.rigidBodies[0];
+    var ks = 5.0;
+    var kd = ks / 15.0;
+    var p = b.l.mulScalar(0.5);      // point of force application in object
+    p = b.R.mulVector(p);            // rotated by the object rotation
+    var pw = p.add(b.x);             // p in world space
+    var x = c.sub(pw);               // spring extension
+    var f = x.mulScalar(ks);         // force in world space
+    var pdot = b.omega.cross(p);     // velocity of point of force application
+    pdot.accum(b.v);                 // add to velocity of center of mass
+    f.accumNeg(pdot.mulScalar(kd));  // damping component
+    var t = p.cross(f);              // torque
+    b.force.accum(f);
+    b.torque.accum(t);
+  }
+}
+*/
+
 
 World.prototype.step = function(dt)
 {
+  this.computeSpringForces();
 	for (var i = 0; i < this.rigidBodies.length; i++)
 	{
 		this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
