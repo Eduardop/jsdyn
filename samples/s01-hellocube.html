@@ -121,10 +121,12 @@ function initGlobals(clientElements) {
   g_pack = g_client.createPack();
 
   // Create the render graph for a view.
+  var clearColor = [.98, .98, .98, 1];
   g_viewInfo = o3djs.rendergraph.createBasicView(
       g_pack,
       g_client.root,
-      g_client.renderGraphRoot);
+      g_client.renderGraphRoot,
+      clearColor);
 }
 
 /**
