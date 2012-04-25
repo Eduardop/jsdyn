@@ -62,7 +62,7 @@ var g_o3d;
 var g_math;
 var g_pack;
 var g_viewInfo;
-var g_eyePosition = [0, 0, 16];
+var g_eyePosition = [0, -2, 16];
 
 var g_transform;
 var g_world;
@@ -143,7 +143,7 @@ function initContext() {
   // primitives are located.
   g_viewInfo.drawContext.view = g_math.matrix4.lookAt(
       g_eyePosition,
-      [0, 0, 0],
+      [0, -2, 0],
       [0, 1, 0]);
 }
 
@@ -163,16 +163,21 @@ function createMaterial(baseColor) {
  * Creates shapes using the primitives utility library, and adds them to the
  * transform graph at the root node.
  */
-function createShapes() {
+function createShapes() 
+{
+  var materialCube = o3djs.material.createBasicMaterial(
+    g_pack, g_viewInfo, [0.0,0.2,1.0,1]);
+  materialCube.getParam('specularFactor').value = 0.7;
+  
+  var materialSpring = o3djs.material.createBasicMaterial(
+    g_pack, g_viewInfo, [0.6,0.5,0.1,1]);
+  materialSpring.getParam('specularFactor').value = 0.0;
+  
   var cube = o3djs.primitives.createCube(
-      g_pack,
-      createMaterial([0.0,0.2,1.0,1]),
-      1.0);
+      g_pack, materialCube, 1.0);
 
   var springMarker = o3djs.primitives.createSphere(
-      g_pack,
-      createMaterial([0.6,0.5,0.1,1]),
-      0.5, 8, 8);
+      g_pack, materialSpring, 0.5, 6, 6);
 
   var transform = g_pack.createObject('Transform');
   transform.addShape(cube);
