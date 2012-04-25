@@ -240,43 +240,38 @@ function render()
   o3d.Transform.compose(g_transform.localMatrix, b.R.getAsO3DMatrix4());
   g_transform.scale(b.l.x, b.l.y, b.l.z);
 
-  if (g_world.springs[0].enabled)
+  for (var springi in g_world.springs)
   {
-    var b = g_world.rigidBodies[0];	
-    var p = b.l.mulScalar(0.5);      // point of force application in object
-    p.x = -p.x;
-    p = b.R.mulVector(p);            // rotated by the object rotation
-    var pw = p.add(b.x);             // p in world space
-    var c = new Float3(-2,0,0);
-    var transforms = g_springTransforms[0].children;
-    for (var i = 0; i < g_numSpringMarkers; i++)
+    var spr = g_world.springs[springi];
+    if (spr.enabled)
     {
-      var r = i / (g_numSpringMarkers-1);
-      var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
+      var pw = [];
+      for (var i = 0; i < 2; i++)
+      {
+        var ep = spr.endPoints[i];
+        var b = ep.body;
+        if (b == 0)
+        {
+          pw[i] = ep.x;                // point of spring connection in world
+        }
+        else
+        {
+          var p = ep.x;                // point of spring connection in object
+          p = b.R.mulVector(p);        // rotated by the object rotation
+          pw[i] = p.add(b.x);          // p in world space
+        }
+      }
+      var transforms = g_springTransforms[springi].children;
+      for (var i = 0; i < g_numSpringMarkers; i++)
+      {
+        var r = i / (g_numSpringMarkers-1);
+        var x = pw[0].mulScalar(r).add(pw[1].mulScalar(1.0 - r));
 
-      var transform = transforms[i];
-      transform.identity();
-      transform.translate(x.x, x.y, x.z);
-      transform.scale(g_markerScale, g_markerScale, g_markerScale);
-    }
-  }
-  if (g_world.springs[1].enabled)
-  {
-    var b = g_world.rigidBodies[0];	
-    var p = b.l.mulScalar(0.5);      // point of force application in object
-    p = b.R.mulVector(p);            // rotated by the object rotation
-    var pw = p.add(b.x);             // p in world space
-    var c = new Float3(2,0,0);
-    var transforms = g_springTransforms[1].children;
-    for (var i = 0; i < g_numSpringMarkers; i++)
-    {
-      var r = i / (g_numSpringMarkers-1);
-      var x = c.mulScalar(r).add(pw.mulScalar(1.0 - r));
-
-      var transform = transforms[i];
-      transform.identity();
-      transform.translate(x.x, x.y, x.z);
-      transform.scale(g_markerScale, g_markerScale, g_markerScale);
+        var transform = transforms[i];
+        transform.identity();
+        transform.translate(x.x, x.y, x.z);
+        transform.scale(g_markerScale, g_markerScale, g_markerScale);
+      }
     }
   }
 }
