@@ -26,10 +26,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
-<!--
-Code partially based on the O3D Primitives sample, (c) 2009, Google Inc.
--->
-
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
   "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -41,147 +37,25 @@ jsdyn sample 1: Hello, Cube
 <script type="text/javascript" src="../3rdparty/o3d-webgl/base.js"></script>
 <script type="text/javascript" src="../3rdparty/o3djs/base.js"></script>
 <script type="text/javascript" src="../jsdyn.js"></script>
+<script type="text/javascript" src="renderer.js"></script>
 <style type="text/css">
 body { font-family: sans-serif; margin: 25px 50px; }
 </style>
 <script type="text/javascript" id="o3dscript">
-o3djs.base.o3d = o3d;
-o3djs.require('o3djs.webgl');
-o3djs.require('o3djs.math');
-o3djs.require('o3djs.rendergraph');
-o3djs.require('o3djs.primitives');
-o3djs.require('o3djs.material');
 
-// global variables
-var g_o3dElement;
-var g_client;
-var g_o3d;
-var g_math;
-var g_pack;
-var g_viewInfo;
-var g_eyePosition = [0, -2, 16];
+var g_renderer = new Renderer();
 
-var g_transform;
-var g_numSpringMarkers = 8;
-var g_markerScale = 0.1;
-
-var g_springTransforms = [];
-
-// --------------------------------------------------------------------
-// Rendering system initialization
-
-/**
- * Creates the client area.
- */
-function initClient() {
-  window.g_finished = false;  // for selenium testing.
-  o3djs.webgl.makeClients(main);
-}
-
-/**
- * Initializes global variables, positions camera, draws shapes.
- * @param {Array} clientElements Array of o3d object elements.
- */
-function main(clientElements) {
-  // Init global variables.
-  initGlobals(clientElements);
-
-  // Set up the view and projection transformations.
-  initContext();
-
-  // Add the shapes to the transform hierarchy.
-  createShapes();
-
-  // Init jsdyn
-  initPhysics();
-
-  g_client.setRenderCallback(render);
-  	document.body.onkeydown = handleKey;
-
-  window.g_finished = true;  // for selenium testing.
-}
-
-/**
- * Initializes global variables and libraries.
- */
-function initGlobals(clientElements) {
-  g_o3dElement = clientElements[0];
-  window.g_client = g_client = g_o3dElement.client;
-  g_o3d = g_o3dElement.o3d;
-  g_math = o3djs.math;
-
-  // Create a pack to manage the objects created.
-  g_pack = g_client.createPack();
-
-  // Create the render graph for a view.
-  var clearColor = [.98, .98, .98, 1];
-  g_viewInfo = o3djs.rendergraph.createBasicView(
-      g_pack,
-      g_client.root,
-      g_client.renderGraphRoot,
-      clearColor);
-}
-
-/**
- * Sets up reasonable view and projection matrices.
- */
-function initContext() {
-  // Set up a perspective transformation for the projection.
-  g_viewInfo.drawContext.projection = g_math.matrix4.perspective(
-      g_math.degToRad(30),
-      g_o3dElement.clientWidth / g_o3dElement.clientHeight,
-      1, 5000);
-
-  // Set up our view transformation to look towards the world origin where the
-  // primitives are located.
-  g_viewInfo.drawContext.view = g_math.matrix4.lookAt(
-      g_eyePosition,
-      [0, -2, 0],
-      [0, 1, 0]);
-}
-
-/**
- * Creates shapes using the primitives utility library, and adds them to the
- * transform graph at the root node.
- */
-function createShapes() 
+// Initialization
+function main() 
 {
-  var materialCube = o3djs.material.createBasicMaterial(
-    g_pack, g_viewInfo, [0.0,0.2,1.0,1]);
-  materialCube.getParam('specularFactor').value = 0.7;
-  
-  var materialSpring = o3djs.material.createBasicMaterial(
-    g_pack, g_viewInfo, [0.6,0.5,0.1,1]);
-  materialSpring.getParam('specularFactor').value = 0.0;
-  
-  var cube = o3djs.primitives.createCube(
-      g_pack, materialCube, 1.0);
-
-  var springMarker = o3djs.primitives.createSphere(
-      g_pack, materialSpring, 0.5, 6, 6);
-
-  var transform = g_pack.createObject('Transform');
-  transform.addShape(cube);
-  transform.parent = g_client.root;
-  g_transform = transform;
-
-  for (var s = 0; s < 2; s++)
-  {
-    var parentTransform = g_pack.createObject('Transform');
-    parentTransform.parent = g_client.root;
-    for (var i = 0; i < g_numSpringMarkers; i++)
-    {
-      var transform = g_pack.createObject('Transform');
-      transform.addShape(springMarker);
-      parentTransform.addChild(transform);
-    }
-    g_springTransforms.push(parentTransform);
-  }
+  initPhysics();
+  var eyePosition = [0, -2, 16];
+  var targetPosition = [0, -2, 0];
+  document.body.onkeydown = handleKey;
+  g_renderer.initialize(eyePosition, targetPosition, frameCallback);
 }
 
-// --------------------------------------------------------------------
-// Physics
-
+// Physics initialization
 function initPhysics()
 {
   var body = new RigidBody();
@@ -214,7 +88,7 @@ function handleKey(event)
 	  return;
 
 	g_world.springs[i].enabled = !g_world.springs[i].enabled;
-	g_springTransforms[i].visible = g_world.springs[i].enabled;
+	g_renderer.setSpringVisible(i, g_world.springs[i].enabled);
 }
 
 function step(dt)
@@ -222,54 +96,15 @@ function step(dt)
   g_world.step(dt);
 }
 
-function render()
+function frameCallback()
 {
   step(1.0 / 30.0);
-  g_transform.identity();
-  var b = g_world.rigidBodies[0];
-  g_transform.translate(b.x.x, b.x.y, b.x.z);
-  o3d.Transform.compose(g_transform.localMatrix, b.R.getAsO3DMatrix4());
-  g_transform.scale(b.l.x, b.l.y, b.l.z);
-
-  for (var springi in g_world.springs)
-  {
-    var spr = g_world.springs[springi];
-    if (spr.enabled)
-    {
-      var pw = [];
-      for (var i = 0; i < 2; i++)
-      {
-        var ep = spr.endPoints[i];
-        var b = ep.body;
-        if (b == 0)
-        {
-          pw[i] = ep.x;                // point of spring connection in world
-        }
-        else
-        {
-          var p = ep.x;                // point of spring connection in object
-          p = b.R.mulVector(p);        // rotated by the object rotation
-          pw[i] = p.add(b.x);          // p in world space
-        }
-      }
-      var transforms = g_springTransforms[springi].children;
-      for (var i = 0; i < g_numSpringMarkers; i++)
-      {
-        var r = i / (g_numSpringMarkers-1);
-        var x = pw[0].mulScalar(r).add(pw[1].mulScalar(1.0 - r));
-
-        var transform = transforms[i];
-        transform.identity();
-        transform.translate(x.x, x.y, x.z);
-        transform.scale(g_markerScale, g_markerScale, g_markerScale);
-      }
-    }
-  }
+  g_renderer.update();
 }
 
 </script>
 </head>
-<body onload="initClient()">
+<body onload="main()">
 <h1>jsdyn sample 1: Hello, Cube</h1>
 <p>Press 1 or 2 to enable/disable springs.</p>
 <!-- Start of O3D plugin -->
