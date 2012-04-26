@@ -287,6 +287,9 @@ RigidBody.prototype.setBox = function(lx, ly, lz, m, x, R)
 	this.L = new Float3(0,0,0);
 	this.Ibody = new Matrix3();
 	this.Ibody.setIdentity();
+    // m=-1 for bodies fixed to the world
+    if (m < 0)
+      return;
 	var m0 = this.mass / 12;
 	this.Ibody.a00 = m0 * (ly * ly + lz * lz);
 	this.Ibody.a11 = m0 * (lx * lx + lz * lz);
@@ -361,52 +364,7 @@ World.prototype.computeSpringForces = function()
       }
     }
   }
-} 
- 
-/*
-  if (g_springs[0].enabled)
-  {
-    // Spring of length 0 from world -2,0,0 to object vertex -0.5,0.5,0.5
-    var c = new Float3(-2,0,0);
-    var b = g_world.rigidBodies[0];
-    var ks = 5.0;
-    var kd = ks / 15.0;
-    var p = b.l.mulScalar(0.5);      // point of force application in object
-    p.x = -p.x;
-    p = b.R.mulVector(p);            // rotated by the object rotation
-    var pw = p.add(b.x);             // p in world space
-    var x = c.sub(pw);               // spring extension
-    var f = x.mulScalar(ks);         // force in world space
-    var pdot = b.omega.cross(p);     // velocity of point of force application
-    pdot.accum(b.v);                 // add to velocity of center of mass
-    f.accumNeg(pdot.mulScalar(kd));  // damping component
-    var t = p.cross(f);              // torque
-    b.force.accum(f);
-    b.torque.accum(t);
-  }
-
-  if (g_springs[1].enabled)
-  {
-    // Spring of length 0 from world 2,0,0 to object vertex 0.5,0.5,0.5
-    var c = new Float3(2,0,0);
-    var b = g_world.rigidBodies[0];
-    var ks = 5.0;
-    var kd = ks / 15.0;
-    var p = b.l.mulScalar(0.5);      // point of force application in object
-    p = b.R.mulVector(p);            // rotated by the object rotation
-    var pw = p.add(b.x);             // p in world space
-    var x = c.sub(pw);               // spring extension
-    var f = x.mulScalar(ks);         // force in world space
-    var pdot = b.omega.cross(p);     // velocity of point of force application
-    pdot.accum(b.v);                 // add to velocity of center of mass
-    f.accumNeg(pdot.mulScalar(kd));  // damping component
-    var t = p.cross(f);              // torque
-    b.force.accum(f);
-    b.torque.accum(t);
-  }
 }
-*/
-
 
 World.prototype.step = function(dt)
 {
@@ -421,9 +379,12 @@ World.prototype.step = function(dt)
 		for (var i = 0; i < this.rigidBodies.length; i++)
 		{
 			var body = this.rigidBodies[i];
-			body.integrateEuler(dt2);
-			body.renormalizeR();
-			body.computeAux();
+            if (body.mass >= 0)
+            {
+              body.integrateEuler(dt2);
+              body.renormalizeR();
+              body.computeAux();
+            }
 		}
 	}
 	for (var i = 0; i < this.rigidBodies.length; i++)

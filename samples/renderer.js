@@ -50,16 +50,17 @@ Renderer = function() {}
 /**
  * Creates the client area.
  */
-Renderer.prototype.initialize = function(eyePosition, targetPosition, frameCallback)
+Renderer.prototype.initialize = function(eyePosition, targetPosition, frameCallback, bodyColors)
 {
   window.g_finished = false;  // for selenium testing.
   this.eyePosition = eyePosition;
   this.targetPosition = targetPosition;
   this.frameCallback = frameCallback;
   this.springTransforms = [];
-	this.bodyTransforms = [];
-	this.numSpringMarkers = 8;
-	this.markerScale = 0.1;
+  this.bodyTransforms = [];
+  this.numSpringMarkers = 8;
+  this.markerScale = 0.1;
+  this.bodyColors = bodyColors;
   g_thisRenderer = this;
   o3djs.webgl.makeClients(Renderer.prototype.initialize2);
 }
@@ -73,7 +74,7 @@ Renderer.prototype.initialize2 = function(clientElements)
   g_thisRenderer.initGlobals(clientElements);
   g_thisRenderer.initContext();
   g_thisRenderer.createShapes();
-	g_client.setRenderCallback(this.frameCallback);
+  g_client.setRenderCallback(this.frameCallback);
   window.g_finished = true;  // for selenium testing.
 }
 
@@ -105,7 +106,7 @@ Renderer.prototype.initGlobals = function(clientElements)
 Renderer.prototype.initContext = function() 
 {
   g_viewInfo.drawContext.projection = g_math.matrix4.perspective(
-      g_math.degToRad(30),
+      g_math.degToRad(50),
       g_o3dElement.clientWidth / g_o3dElement.clientHeight,
       1, 5000);
   g_viewInfo.drawContext.view = g_math.matrix4.lookAt(
@@ -119,22 +120,25 @@ Renderer.prototype.initContext = function()
  */
 Renderer.prototype.createShapes = function() 
 {
-  var materialCube = o3djs.material.createBasicMaterial(
-    g_pack, g_viewInfo, [0.0,0.2,1.0,1]);
-  materialCube.getParam('specularFactor').value = 0.7;
-  
+
   var materialSpring = o3djs.material.createBasicMaterial(
     g_pack, g_viewInfo, [0.6,0.5,0.1,1]);
   materialSpring.getParam('specularFactor').value = 0.0;
-  
-  var cube = o3djs.primitives.createCube(
-      g_pack, materialCube, 1.0);
-
   var springMarker = o3djs.primitives.createSphere(
-      g_pack, materialSpring, 0.5, 6, 6);
+    g_pack, materialSpring, 0.5, 6, 6);
 
   for (var b in g_world.rigidBodies)
   {
+    var color = (this.bodyColors) ? this.bodyColors[b] : [0.0,0.2,1.0,1];
+      
+    var materialCube = o3djs.material.createBasicMaterial(
+      g_pack, g_viewInfo, color);
+    materialCube.getParam('specularFactor').value = 0.5;
+    materialCube.getParam('ambient').value = [0.3,0.3,0.3,1];
+
+    var cube = o3djs.primitives.createCube(
+      g_pack, materialCube, 1.0);
+
     var transform = g_pack.createObject('Transform');
     transform.addShape(cube);
     transform.parent = g_client.root;
