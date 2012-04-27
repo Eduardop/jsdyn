@@ -167,6 +167,15 @@ Renderer.prototype.setSpringVisible = function(springi, visible)
 	this.springTransforms[springi].visible = visible;
 }
 
+Renderer.prototype.glMat3ToO3DMat4 = function(m)
+{
+    return [
+        [m[0], m[1], m[2], 0],
+        [m[3], m[4], m[5], 0],
+        [m[6], m[7], m[8], 0],
+        [   0,    0,    0, 1] ];
+}
+
 /**
  * Updates renderer transforms based on physics world
  */
@@ -177,9 +186,9 @@ Renderer.prototype.update = function()
     var b = g_world.rigidBodies[bi];
     var t = this.bodyTransforms[bi];    
     t.identity();
-    t.translate(b.x.x, b.x.y, b.x.z);
-    o3d.Transform.compose(t.localMatrix, b.R.getAsO3DMatrix4());
-    t.scale(b.l.x, b.l.y, b.l.z);
+    t.translate([b.x[0], b.x[1], b.x[2]]);
+    o3d.Transform.compose(t.localMatrix, this.glMat3ToO3DMat4(b.R));
+    t.scale([b.l[0], b.l[1], b.l[2]]);
   }
 
   for (var springi in g_world.springs)
@@ -194,25 +203,30 @@ Renderer.prototype.update = function()
         var b = ep.body;
         if (b == 0)
         {
-          pw[i] = ep.x;                // point of spring connection in world
+          pw[i] = vec3.create(ep.x);        // point of spring connection in world
         }
         else
         {
-          var p = ep.x;                // point of spring connection in object
-          p = b.R.mulVector(p);        // rotated by the object rotation
-          pw[i] = p.add(b.x);          // p in world space
+          pw[i] = vec3.create();
+          var p = vec3.create(ep.x);        // point of spring connection in object
+          mat3.multiplyVec3(b.R, p);        // rotated by the object rotation
+          vec3.add(p, b.x, pw[i]);          // p in world space
         }
       }
       var transforms = this.springTransforms[springi].children;
       for (var i = 0; i < this.numSpringMarkers; i++)
       {
         var r = i / (this.numSpringMarkers-1);
-        var x = pw[0].mulScalar(r).add(pw[1].mulScalar(1.0 - r));
+        var x = vec3.create();
+        vec3.scale(pw[0], r, x);
+        var x1 = vec3.create();
+        vec3.scale(pw[1], 1 - r, x1);
+        vec3.add(x, x1);
 
         var transform = transforms[i];
         transform.identity();
-        transform.translate(x.x, x.y, x.z);
-        transform.scale(this.markerScale, this.markerScale, this.markerScale);
+        transform.translate([x[0], x[1], x[2]]);
+        transform.scale([this.markerScale, this.markerScale, this.markerScale]);
       }
     }
   }
