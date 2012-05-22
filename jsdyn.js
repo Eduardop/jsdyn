@@ -458,39 +458,89 @@ World.prototype.integrateBodies = function (dt)
     }
 }
 
-function Collisions()
+function Collision()
 {
     this.collided = false;
-    this.penetration = false;
+    this.depth = 0;
 }
 
-World.prototype.detectCollisionsBodyBody = function (b0, b1)
+var cubePoints  = [ new Float3(-0.5, 0, 0), new Float3(0.5, 0, 0),
+                    new Float3(0, -0.5, 0), new Float3(0, 0.5, 0),
+                    new Float3(0, 0, -0.5), new Float3(0, 0, 0.5)];
+var cubeNormals = [ new Float3(-1, 0, 0),   new Float3(1, 0, 0),
+                    new Float3(0, -1, 0),   new Float3(0, 1, 0),
+                    new Float3(0, 0, -1),   new Float3(0, 0, 1)];
+
+World.prototype.linePlaneIntersection = function (p, n, pa, pb)
 {
-    var cdelta = 0.5 - 0.001;
-    var invRb1 = b1.R.transpose();
-    var invlb1 = new Float3(1/b1.l.x, 1/b1.l.y, 1/b1.l.z);
-    var reldist = b0.x.sub(b1.x);
+    var den = ((pb.sub(pa)).dot(n));
+    if (den == 0)
+        return 1.0e30;
+    return ((p.sub(pa)).dot(n))/den;
+}
+
+World.prototype.detectCollisionBodyBody = function (b0, b1a, b1b)
+{
+    var invRb0 = b0.R.transpose();
+    var invlb0 = new Float3(1/b0.l.x, 1/b0.l.y, 1/b0.l.z);
+    var reldista = b1a.x.sub(b0.x);
+    var reldistb = b1b.x.sub(b0.x);
     for (var x = -0.5; x <= 0.5; x += 1)
         for (var y = -0.5; y <= 0.5; y += 1)
             for (var z = -0.5; z <= 0.5; z += 1)
             {
-                var p = new Float3(x, y, z);
-                p = p.mulVector(b0.l);           // vertex of box     
-                var rp = b0.R.mulVector(p);      // rotated by the object rotation
-                var wrp = rp.add(reldist);       // in b1 space
-                var pb1 = invRb1.mulVector(wrp); // rotated by inverse b1 rotation
-                pb1 = pb1.mulVector(invlb1);     // normalized to unit cube
-                if ((pb1.x < 0.5 && pb1.x > -0.5) &&
-                    (pb1.y < 0.5 && pb1.y > -0.5) &&
-                    (pb1.z < 0.5 && pb1.z > -0.5))
+                var pb = new Float3(x, y, z);
+                pb = pb.mulVector(b1b.l);           // vertex of box     
+                var rpb = b1b.R.mulVector(pb);      // rotated by the object rotation
+                var wrpb = rpb.add(reldistb);       // in b0 space
+                var qb = invRb0.mulVector(wrpb);    // rotated by inverse b0 rotation
+                qb = qb.mulVector(invlb0);          // normalized to unit cube
+
+                if ((qb.x < 0.5 && qb.x > -0.5) &&
+                    (qb.y < 0.5 && qb.y > -0.5) &&
+                    (qb.z < 0.5 && qb.z > -0.5))
                 {
-                    var coll = new Collisions();
+                    var coll = new Collision();
                     coll.collided = true;
-                    console.log("Collided");
+                    //console.log("Collided");
+             
+                    var pa = new Float3(x, y, z);
+                    pa = pa.mulVector(b1a.l);           // vertex of box     
+                    var rpa = b1a.R.mulVector(pa);      // rotated by the object rotation
+                    var wrpa = rpa.add(reldista);       // in b0 space
+                    var qa = invRb0.mulVector(wrpa);    // rotated by inverse b0 rotation
+                    qa = qa.mulVector(invlb0);          // normalized to unit cube
+                    
+                    if ((qa.x < 0.5 && qa.x > -0.5) &&
+                        (qa.y < 0.5 && qa.y > -0.5) &&
+                        (qa.z < 0.5 && qa.z > -0.5))
+                    {
+                        console.log("Warning: penetration not resolved on previous frame");
+                    }
+                    
+                    var max_d = -1.0e30;
+                    var max_f = -1;
+                    for (var f = 0; f < 6; f++)
+                    {
+                        var d = this.linePlaneIntersection(cubePoints[f], cubeNormals[f], qa, qb);
+                        //console.log("d=" + d);
+                        if (d <= 1)
+                        {
+                            if (d > max_d)
+                            {
+                                max_d = d;
+                                max_f = f;
+                            }
+                        }
+                    }
+                    coll.pos = qa.add((qb.sub(qa)).mulScalar(max_d));
+                    coll.normal = cubeNormals[max_f];
+                    coll.depth = -((qb.sub(cubePoints[max_f])).dot(coll.normal));
+                    coll.planep = cubePoints[max_f];
                     return coll;
                 }
             }
-    return new Collisions();
+    return new Collision();
 }
 
 World.prototype.detectCollisions = function ()
@@ -502,14 +552,15 @@ World.prototype.detectCollisions = function ()
         {
             if (i != j)
             {
-                var b1 = this.rigidBodies[j];
-                var collision = this.detectCollisionsBodyBody(b0, b1);
+                var b1a = this.rigidBodiesPrevious[j];
+                var b1b = this.rigidBodies[j];
+                var collision = this.detectCollisionBodyBody(b0, b1a, b1b);
                 if (collision.collided)
                     return collision;
             }
         }
     }
-    return new Collisions();
+    return new Collision();
 }
 
 World.prototype.handleCollisions = function (collisions)
@@ -519,7 +570,7 @@ World.prototype.handleCollisions = function (collisions)
 
 World.prototype.copyBodies = function (ba0, ba1) // copy ba1 to ba0
 {
-    ba0 = [];
+    ba0.length = 0;
     for (var i = 0; i < ba1.length; i++)
     {
         var b1 = ba1[i];
@@ -549,25 +600,38 @@ World.prototype.step = function (dt)
     {
         this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
     }
-    var penetration = false;
+    var penetrated = false;
     //console.log("step dt=" + dt);
-    while (dt > MIN_DT)
+    while (dt > 0.0)
     {
+        //console.log("dt=" + dt);
         var dt2 = dt;
         this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies);
         do
         {
+            //console.log("dt2=" + dt2);
             this.integrateBodies(dt2);
-            var collisions = this.detectCollisions();
-            if (collisions.penetration && dt2 > MIN_DT)
+            var collision = this.detectCollisions();
+            penetrated = (collision.depth > 0.1);
+            if (penetrated)
             {
-                penetration = true;
-                dt2 = dt / 2;
-                this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious);
+                if (dt2 > MIN_DT)
+                {
+                    dt2 = dt2 / 2;
+                    this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious);
+                }
+                else
+                {
+                    console.log("Warning: penetration fallback");
+                    penetrated = false;
+                    this.handleCollisions(collision);
+                }
             }
-            else if (collisions.collided)
-                this.handleCollisions(collisions);
-        } while (penetration == true);
+            else if (collision.collided)
+            {
+                this.handleCollisions(collision);
+            }
+        } while (penetrated == true);
         dt -= dt2;
     }
     
