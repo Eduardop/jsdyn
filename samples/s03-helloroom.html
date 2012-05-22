@@ -94,17 +94,20 @@ function initPhysics()
   var p0 = new Float3(-0.5, 0.5, 0.5);
   var p1 = new Float3(0.5, 0.5, 0.5);
   
+  var springKs = 5.0;
+  var springKd = 0.3;
+    
   g_world.springs.push(new Spring(
     0, new Float3(-4,0,0), 
-    g_world.rigidBodies[0], p0, 0, 5.0, 0.3));
+    g_world.rigidBodies[0], p0, 0, springKs, springKd));
 
   g_world.springs.push(new Spring(
     g_world.rigidBodies[0], p1, 
-    g_world.rigidBodies[1], p0, 0, 5.0, 0.3));
+    g_world.rigidBodies[1], p0, 0, springKs, springKd));
 
   g_world.springs.push(new Spring(
     g_world.rigidBodies[1], p1, 
-    0, new Float3(4,0,0), 0, 5.0, 0.3));
+    0, new Float3(4,0,0), 0, springKs, springKd));
 }
 
 function handleKey(event)
