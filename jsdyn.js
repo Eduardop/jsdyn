@@ -311,6 +311,23 @@ function RigidBody()
     this.torque = new Float3(0, 0, 0);
 }
 
+RigidBody.prototype.setFrom = function (b)
+{
+    this.l        = S_Float3.copyFrom(b.l);
+    this.mass     = b.mass;
+    this.Ibody    = S_Matrix3.copyFrom(b.Ibody);
+    this.Ibodyinv = S_Matrix3.copyFrom(b.Ibodyinv);
+    this.x        = S_Float3.copyFrom(b.x);
+    this.R        = S_Matrix3.copyFrom(b.R);
+    this.P        = S_Float3.copyFrom(b.P);
+    this.L        = S_Float3.copyFrom(b.L);
+    this.Iinv     = S_Matrix3.copyFrom(b.Iinv);
+    this.v        = S_Float3.copyFrom(b.v);
+    this.omega    = S_Float3.copyFrom(b.omega);
+    this.force    = S_Float3.copyFrom(b.force);
+    this.torque   = S_Float3.copyFrom(b.torque);
+}
+
 RigidBody.prototype.computeAux = function ()
 {
     this.v = this.P.divScalar(this.mass);
@@ -568,27 +585,24 @@ World.prototype.handleCollisions = function (collisions)
     
 }
 
-World.prototype.copyBodies = function (ba0, ba1) // copy ba1 to ba0
+World.prototype.copyBodies = function (ba0, ba1, reuse) // copy ba1 to ba0
 {
-    ba0.length = 0;
-    for (var i = 0; i < ba1.length; i++)
+    if (reuse)
     {
-        var b1 = ba1[i];
-        var b0 = new RigidBody();
-        b0.l        = S_Float3.copyFrom(b1.l);
-        b0.mass     = b1.mass;
-        b0.Ibody    = S_Matrix3.copyFrom(b1.Ibody);
-        b0.Ibodyinv = S_Matrix3.copyFrom(b1.Ibodyinv);
-        b0.x        = S_Float3.copyFrom(b1.x);
-        b0.R        = S_Matrix3.copyFrom(b1.R);
-        b0.P        = S_Float3.copyFrom(b1.P);
-        b0.L        = S_Float3.copyFrom(b1.L);
-        b0.Iinv     = S_Matrix3.copyFrom(b1.Iinv);
-        b0.v        = S_Float3.copyFrom(b1.v);
-        b0.omega    = S_Float3.copyFrom(b1.omega);
-        b0.force    = S_Float3.copyFrom(b1.force);
-        b0.torque   = S_Float3.copyFrom(b1.torque);
-        ba0.push(b0);
+        for (var i = 0; i < ba1.length; i++)
+        {
+            ba0[i].setFrom(ba1[i]);
+        }
+    }
+    else
+    {
+        ba0.length = 0;
+        for (var i = 0; i < ba1.length; i++)
+        {
+            var b0 = new RigidBody();
+            b0.setFrom(ba1[i]);
+            ba0.push(b0);
+        }
     }
 }
 
@@ -606,7 +620,7 @@ World.prototype.step = function (dt)
     {
         //console.log("dt=" + dt);
         var dt2 = dt;
-        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies);
+        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
         do
         {
             //console.log("dt2=" + dt2);
@@ -618,7 +632,7 @@ World.prototype.step = function (dt)
                 if (dt2 > MIN_DT)
                 {
                     dt2 = dt2 / 2;
-                    this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious);
+                    this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious, true);
                 }
                 else
                 {
