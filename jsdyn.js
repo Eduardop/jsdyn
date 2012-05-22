@@ -34,6 +34,11 @@ function Float3(x, y, z)
     this.z = z;
 }
 
+Float3.prototype.copyFrom = function (a)
+{
+    return new Float3(a.x, a.y, a.z);
+}
+
 Float3.prototype.add = function (v)
 {
     return new Float3(this.x + v.x, this.y + v.y, this.z + v.z);
@@ -100,8 +105,45 @@ Float3.prototype.normalize = function ()
     this.z /= l;
 }
 
+Float3.prototype.mulVector = function (v)
+{
+    return new Float3(this.x * v.x, this.y * v.y, this.z * v.z);
+}
+
+Float3.prototype.getSkewSymmMatrix = function ()
+{
+    var m = new Matrix3();
+    m.a00 = 0;
+    m.a01 = -this.z;
+    m.a02 = this.y;
+    m.a10 = this.z;
+    m.a11 = 0;
+    m.a12 = -this.x;
+    m.a20 = -this.y;
+    m.a21 = this.x;
+    m.a22 = 0;
+    return m;
+}
+
+var S_Float3 = new Float3(0,0,0);
+
 function Matrix3()
 {}
+
+Matrix3.prototype.copyFrom = function (m)
+{
+    var r = new Matrix3();
+    r.a00 = m.a00;
+    r.a01 = m.a01;
+    r.a02 = m.a02;
+    r.a10 = m.a10;
+    r.a11 = m.a11;
+    r.a12 = m.a12;
+    r.a20 = m.a20;
+    r.a21 = m.a21;
+    r.a22 = m.a22;
+    return r;
+}
 
 Matrix3.prototype.setIdentity = function ()
 {
@@ -217,20 +259,7 @@ Matrix3.prototype.getAsO3DMatrix4 = function ()
             [0, 0, 0, 1]];
 }
 
-Float3.prototype.getSkewSymmMatrix = function ()
-{
-    var m = new Matrix3();
-    m.a00 = 0;
-    m.a01 = -this.z;
-    m.a02 = this.y;
-    m.a10 = this.z;
-    m.a11 = 0;
-    m.a12 = -this.x;
-    m.a20 = -this.y;
-    m.a21 = this.x;
-    m.a22 = 0;
-    return m;
-}
+var S_Matrix3 = new Matrix3();
 
 function SpringEndPoint(body, x)
 {
@@ -336,7 +365,8 @@ RigidBody.prototype.setBox = function (lx, ly, lz, m, x, R)
     this.Ibody = new Matrix3();
     this.Ibody.setIdentity();
     // m=-1 for bodies fixed to the world
-    if (m < 0) return;
+    //if (m < 0) 
+    //    return;
     var m0 = this.mass / 12;
     this.Ibody.a00 = m0 * (ly * ly + lz * lz);
     this.Ibody.a11 = m0 * (lx * lx + lz * lz);
@@ -353,6 +383,7 @@ function World()
 {
     this.gravity = new Float3(0, -9.8, 0);
     this.rigidBodies = [];
+    this.rigidBodiesPrevious = [];
     this.springs = [];
     this.numSteps = 10;
     this.kdl = 0.1; // linear damping
@@ -368,9 +399,9 @@ World.prototype.computeSpringForces = function ()
         spr = this.springs[springi];
         if (spr.enabled)
         {
-            var x = []; // Points of force application in object space
-            var xw = []; // Points of force application in world space
-            var v = []; // Velocities of the points of force application
+            var x = [];      // Points of force application in object space
+            var xw = [];     // Points of force application in world space
+            var v = [];      // Velocities of the points of force application
             for (var i = 0; i < 2; i++)
             {
                 if (spr.endPoints[i].body == 0)
@@ -381,14 +412,14 @@ World.prototype.computeSpringForces = function ()
                 else
                 {
                     var b = spr.endPoints[i].body;
-                    x[i] = spr.endPoints[i].x; // point of force application in object
-                    x[i] = b.R.mulVector(x[i]); // rotated by the object rotation
-                    xw[i] = x[i].add(b.x); // x[i] in world space
-                    v[i] = b.omega.cross(x[i]); // velocity of point of force application
-                    v[i].accum(b.v); // add to velocity of center of mass
+                    x[i] = spr.endPoints[i].x;     // point of force application in object
+                    x[i] = b.R.mulVector(x[i]);    // rotated by the object rotation
+                    xw[i] = x[i].add(b.x);         // x[i] in world space
+                    v[i] = b.omega.cross(x[i]);    // velocity of point of force application
+                    v[i].accum(b.v);               // add to velocity of center of mass
                 }
             }
-            var sv = xw[1].sub(xw[0]); // spring extension
+            var sv = xw[1].sub(xw[0]);     // spring extension
             var sl = sv.len();
             var ext = sl - spr.restLength;
             var f = sv.mulScalar(spr.ks * ext / sl);
@@ -413,27 +444,133 @@ World.prototype.computeSpringForces = function ()
     }
 }
 
+World.prototype.integrateBodies = function (dt)
+{
+    for (var i = 0; i < this.rigidBodies.length; i++)
+    {
+        var body = this.rigidBodies[i];
+        if (body.mass >= 0)
+        {
+            body.integrateEuler(dt);
+            body.renormalizeR();
+            body.computeAux();
+        }
+    }
+}
+
+function Collisions()
+{
+    this.collided = false;
+    this.penetration = false;
+}
+
+World.prototype.detectCollisionsBodyBody = function (b0, b1)
+{
+    var cdelta = 0.5 - 0.001;
+    var invRb1 = b1.R.transpose();
+    var invlb1 = new Float3(1/b1.l.x, 1/b1.l.y, 1/b1.l.z);
+    var reldist = b0.x.sub(b1.x);
+    for (var x = -0.5; x <= 0.5; x += 1)
+        for (var y = -0.5; y <= 0.5; y += 1)
+            for (var z = -0.5; z <= 0.5; z += 1)
+            {
+                var p = new Float3(x, y, z);
+                p = p.mulVector(b0.l);           // vertex of box     
+                var rp = b0.R.mulVector(p);      // rotated by the object rotation
+                var wrp = rp.add(reldist);       // in b1 space
+                var pb1 = invRb1.mulVector(wrp); // rotated by inverse b1 rotation
+                pb1 = pb1.mulVector(invlb1);     // normalized to unit cube
+                if ((pb1.x < 0.5 && pb1.x > -0.5) &&
+                    (pb1.y < 0.5 && pb1.y > -0.5) &&
+                    (pb1.z < 0.5 && pb1.z > -0.5))
+                {
+                    var coll = new Collisions();
+                    coll.collided = true;
+                    console.log("Collided");
+                    return coll;
+                }
+            }
+    return new Collisions();
+}
+
+World.prototype.detectCollisions = function ()
+{
+    for (var i = 0; i < this.rigidBodies.length; i++)
+    {
+        var b0 = this.rigidBodies[i];
+        for (var j = 0; j < this.rigidBodies.length; j++)
+        {
+            if (i != j)
+            {
+                var b1 = this.rigidBodies[j];
+                var collision = this.detectCollisionsBodyBody(b0, b1);
+                if (collision.collided)
+                    return collision;
+            }
+        }
+    }
+    return new Collisions();
+}
+
+World.prototype.handleCollisions = function (collisions)
+{
+    
+}
+
+World.prototype.copyBodies = function (ba0, ba1) // copy ba1 to ba0
+{
+    ba0 = [];
+    for (var i = 0; i < ba1.length; i++)
+    {
+        var b1 = ba1[i];
+        var b0 = new RigidBody();
+        b0.l        = S_Float3.copyFrom(b1.l);
+        b0.mass     = b1.mass;
+        b0.Ibody    = S_Matrix3.copyFrom(b1.Ibody);
+        b0.Ibodyinv = S_Matrix3.copyFrom(b1.Ibodyinv);
+        b0.x        = S_Float3.copyFrom(b1.x);
+        b0.R        = S_Matrix3.copyFrom(b1.R);
+        b0.P        = S_Float3.copyFrom(b1.P);
+        b0.L        = S_Float3.copyFrom(b1.L);
+        b0.Iinv     = S_Matrix3.copyFrom(b1.Iinv);
+        b0.v        = S_Float3.copyFrom(b1.v);
+        b0.omega    = S_Float3.copyFrom(b1.omega);
+        b0.force    = S_Float3.copyFrom(b1.force);
+        b0.torque   = S_Float3.copyFrom(b1.torque);
+        ba0.push(b0);
+    }
+}
+
 World.prototype.step = function (dt)
 {
+    var MIN_DT = 1/(30*16);
     this.computeSpringForces();
     for (var i = 0; i < this.rigidBodies.length; i++)
     {
         this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
     }
-    var dt2 = dt / this.numSteps;
-    for (var n = 0; n < this.numSteps; n++)
+    var penetration = false;
+    //console.log("step dt=" + dt);
+    while (dt > MIN_DT)
     {
-        for (var i = 0; i < this.rigidBodies.length; i++)
+        var dt2 = dt;
+        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies);
+        do
         {
-            var body = this.rigidBodies[i];
-            if (body.mass >= 0)
+            this.integrateBodies(dt2);
+            var collisions = this.detectCollisions();
+            if (collisions.penetration && dt2 > MIN_DT)
             {
-                body.integrateEuler(dt2);
-                body.renormalizeR();
-                body.computeAux();
+                penetration = true;
+                dt2 = dt / 2;
+                this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious);
             }
-        }
+            else if (collisions.collided)
+                this.handleCollisions(collisions);
+        } while (penetration == true);
+        dt -= dt2;
     }
+    
     for (var i = 0; i < this.rigidBodies.length; i++)
     {
         this.rigidBodies[i].force = new Float3(0, 0, 0);
