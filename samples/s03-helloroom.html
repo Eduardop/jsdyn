@@ -44,7 +44,7 @@ body { font-family: sans-serif; margin: 25px 50px; }
 <script type="text/javascript">
 
 var g_renderer = new Renderer();
-var g_running = false;
+var g_running = true;
 
 // Initialization
 function main() 
@@ -70,8 +70,8 @@ function initPhysics()
   {
     var body = new RigidBody();
     var pos = new Float3(2*(i-1),0,0);
-    if (i == 0)
-      pos = new Float3(-2,-5,0);
+    //if (i == 0)
+    //  pos = new Float3(-2,-5,0);
     var rot = new Matrix3();
     rot.setIdentity();
     body.setBox(1, 1, 1, 1, pos, rot);
@@ -112,8 +112,8 @@ function initPhysics()
     g_world.rigidBodies[1], p1, 
     0, new Float3(4,0,0), 0, springKs, springKd));
     
-    g_world.springs[0].enabled = false;
-    g_world.springs[1].enabled = false;
+  // g_world.springs[0].enabled = false;
+  // g_world.springs[1].enabled = false;
 }
 
 function handleKey(event)

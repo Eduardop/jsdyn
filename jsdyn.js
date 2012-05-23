@@ -677,65 +677,28 @@ World.prototype.step = function (dt)
         this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
     }
     
-    var MIN_DT = 1/(30*32);
-    var dt2 = dt;
-    while (dt > 0)
+    this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
+    this.integrateBodies(dt);
+    var contacts = this.detectContacts();
+    
+    if (contacts.length > 0)
+        console.log("collisions: " + contacts.length);
+    
+    var collided;
+    do
     {
-        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
-        var contacts = [];
-        var penetrating;
-        do
+        collided = false;
+        for (var i = 0; i < contacts.length; i++)
         {
-            this.integrateBodies(dt2);
-            contacts = this.detectContacts();
-            penetrating = false;
-            for (var i = 0; i < contacts.length; i++)
+            var con = contacts[i];
+            if (this.isColliding(con))
             {
-                if (this.isPenetrating(contacts[i]))
-                {
-                    penetrating = true;
-                    break;
-                }
-            }
-            if (penetrating)
-            {
-                if (dt2 <= MIN_DT)
-                {
-                    penetrating = false;
-                }
-                else
-                {
-                    this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious, true);
-                    dt2 = dt2 / 2;
-                }
-            }
-            if (!penetrating)
-            {
-                dt -= dt2;
-                dt2 = dt;
+                //collided = true;
+                this.handleCollision(con);
             }
         }
-        while (penetrating);
-        
-        if (contacts.length > 0)
-            console.log("collisions: " + contacts.length);
-        
-        var collided;
-        do
-        {
-            collided = false;
-            for (var i = 0; i < contacts.length; i++)
-            {
-                var con = contacts[i];
-                if (this.isColliding(con))
-                {
-                    //collided = true;
-                    this.handleCollision(con);
-                }
-            }
-        }
-        while (collided);
     }
+    while (collided);
 
     for (var i = 0; i < this.rigidBodies.length; i++)
     {
