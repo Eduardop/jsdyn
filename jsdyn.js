@@ -27,6 +27,10 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// This work is based on the Siggraph course "Physically Based
+// Modeling" by David Baraff:
+// http://graphics.cs.cmu.edu/courses/15-869-F08/lec/14/notesg.pdf
+
 function Float3(x, y, z)
 {
     this.x = x;
@@ -379,6 +383,7 @@ RigidBody.prototype.setBox = function (lx, ly, lz, m, x, R)
     this.R = R;
     this.P = new Float3(0, 0, 0);
     this.L = new Float3(0, 0, 0);
+    // TODO: optimize. Ibody doesn't need to be stored.
     this.Ibody = new Matrix3();
     this.Ibody.setIdentity();
     // m=-1 for bodies fixed to the world
@@ -408,6 +413,11 @@ function World()
 }
 
 var g_world = new World();
+
+World.prototype.ptVelocity = function (b, p)
+{
+    return b.v.add(b.omega.cross(p.sub(b.x))); 
+}
 
 World.prototype.computeSpringForces = function ()
 {
@@ -519,7 +529,7 @@ World.prototype.detectCollisionBodyBody = function (b0, b1a, b1b)
                 {
                     var coll = new Collision();
                     coll.collided = true;
-                    //console.log("Collided");
+                    console.log("Collided");
              
                     var pa = new Float3(x, y, z);
                     pa = pa.mulVector(b1a.l);           // vertex of box     
@@ -550,10 +560,16 @@ World.prototype.detectCollisionBodyBody = function (b0, b1a, b1b)
                             }
                         }
                     }
-                    coll.pos = qa.add((qb.sub(qa)).mulScalar(max_d));
+                    var worldPos = qa.add((qb.sub(qa)).mulScalar(max_d)); // in unit b0 space
+                    worldPos = worldPos.mulVector(b0.l);                  // scaled by b0 dimensions
+                    worldPos = b0.R.mulVector(worldPos);                  // rotated by b0 rotation
+                    coll.pos = worldPos.add(b0.x);                        // in world space
                     coll.normal = cubeNormals[max_f];
+                    //if (qb.sub(qa).dot(coll.normal) > 0)
+                    //    coll.collided = false;
                     coll.depth = -((qb.sub(cubePoints[max_f])).dot(coll.normal));
-                    coll.planep = cubePoints[max_f];
+                    coll.b0 = b0;
+                    coll.b1 = b1b;
                     return coll;
                 }
             }
@@ -580,9 +596,43 @@ World.prototype.detectCollisions = function ()
     return new Collision();
 }
 
-World.prototype.handleCollisions = function (collisions)
+World.prototype.handleCollisions = function (coll)
 {
-    
+    var padot = this.ptVelocity(coll.b0, coll.pos);
+    var pbdot = this.ptVelocity(coll.b1, coll.pos);
+    var ra = coll.pos.sub(coll.b0.x);
+    var rb = coll.pos.sub(coll.b1.x);
+    var vrel = coll.normal.dot(padot.sub(pbdot));
+    var epsilon = 0.5;
+    var num = -(1 + epsilon) * vrel;
+    var term1 = 0;
+    var term2 = 0;
+    var term3 = 0;
+    var term4 = 0;
+    if (coll.b0.mass > 0)
+    {
+        term1 = 1 / coll.b0.mass;
+        term3 = coll.normal.dot(coll.b0.Iinv.mulVector(ra.cross(coll.normal)).cross(ra));
+    }
+    if (coll.b1.mass > 0)
+    {
+        term2 = 1 / coll.b1.mass;
+        term4 = coll.normal.dot(coll.b1.Iinv.mulVector(rb.cross(coll.normal)).cross(rb));
+    }
+    var j = num / (term1 + term2 + term3 + term4);
+    var impulse = coll.normal.mulScalar(j);
+    if (coll.b0.mass > 0)
+    {
+        coll.b0.P.accum(impulse);
+        coll.b0.L.accum(ra.cross(impulse));
+        coll.b0.computeAux();
+    }
+    if (coll.b1.mass > 0)
+    {
+        coll.b1.P.accumNeg(impulse);
+        coll.b1.L.accumNeg(rb.cross(impulse));
+        coll.b1.computeAux();
+    }
 }
 
 World.prototype.copyBodies = function (ba0, ba1, reuse) // copy ba1 to ba0
@@ -608,25 +658,24 @@ World.prototype.copyBodies = function (ba0, ba1, reuse) // copy ba1 to ba0
 
 World.prototype.step = function (dt)
 {
-    var MIN_DT = 1/(30*16);
+    console.log("Step");
+    var MIN_DT = 1/(30*32);
     this.computeSpringForces();
     for (var i = 0; i < this.rigidBodies.length; i++)
     {
         this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
     }
     var penetrated = false;
-    //console.log("step dt=" + dt);
+    var dt2 = dt;
     while (dt > 0.0)
     {
-        //console.log("dt=" + dt);
-        var dt2 = dt;
         this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
         do
         {
             //console.log("dt2=" + dt2);
             this.integrateBodies(dt2);
             var collision = this.detectCollisions();
-            penetrated = (collision.depth > 0.1);
+            penetrated = (collision.depth > 0.01);
             if (penetrated)
             {
                 if (dt2 > MIN_DT)
@@ -639,14 +688,23 @@ World.prototype.step = function (dt)
                     console.log("Warning: penetration fallback");
                     penetrated = false;
                     this.handleCollisions(collision);
+                    dt -= dt2;
+                    dt2 = dt;
                 }
             }
             else if (collision.collided)
             {
+                console.log("Collision dt2=" + dt2);
                 this.handleCollisions(collision);
+                dt -= dt2;
+                dt2 = dt;
+            }
+            else
+            {
+                dt -= dt2;
+                dt2 = dt;
             }
         } while (penetrated == true);
-        dt -= dt2;
     }
     
     for (var i = 0; i < this.rigidBodies.length; i++)
