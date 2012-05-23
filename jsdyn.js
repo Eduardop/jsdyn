@@ -663,6 +663,11 @@ World.prototype.isColliding = function(con)
     return (vrel < 0);
 }
 
+World.prototype.isPenetrating = function(con)
+{
+    return (con.depth > 0.1);
+}
+
 World.prototype.step = function (dt)
 {
     //console.log("Step");
@@ -672,28 +677,66 @@ World.prototype.step = function (dt)
         this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
     }
     
-    this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);    
-    this.integrateBodies(dt);
-    var contacts = this.detectContacts();
-    if (contacts.length > 0)
-        console.log("collisions: " + contacts.length);
-
-    var collided;
-    do
+    var MIN_DT = 1/(30*32);
+    var dt2 = dt;
+    while (dt > 0)
     {
-        collided = false;
-        for (var i = 0; i < contacts.length; i++)
+        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
+        var contacts = [];
+        var penetrating;
+        do
         {
-            var con = contacts[i];
-            if (this.isColliding(con))
+            this.integrateBodies(dt2);
+            contacts = this.detectContacts();
+            penetrating = false;
+            for (var i = 0; i < contacts.length; i++)
             {
-                //collided = true;
-                this.handleCollision(con);
+                if (this.isPenetrating(contacts[i]))
+                {
+                    penetrating = true;
+                    break;
+                }
+            }
+            if (penetrating)
+            {
+                if (dt2 <= MIN_DT)
+                {
+                    penetrating = false;
+                }
+                else
+                {
+                    this.copyBodies(this.rigidBodies, this.rigidBodiesPrevious, true);
+                    dt2 = dt2 / 2;
+                }
+            }
+            if (!penetrating)
+            {
+                dt -= dt2;
+                dt2 = dt;
             }
         }
-    }
-    while (collided);
+        while (penetrating);
         
+        if (contacts.length > 0)
+            console.log("collisions: " + contacts.length);
+        
+        var collided;
+        do
+        {
+            collided = false;
+            for (var i = 0; i < contacts.length; i++)
+            {
+                var con = contacts[i];
+                if (this.isColliding(con))
+                {
+                    //collided = true;
+                    this.handleCollision(con);
+                }
+            }
+        }
+        while (collided);
+    }
+
     for (var i = 0; i < this.rigidBodies.length; i++)
     {
         this.rigidBodies[i].force = new Float3(0, 0, 0);
