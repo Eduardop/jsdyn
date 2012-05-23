@@ -46,71 +46,67 @@ body { font-family: sans-serif; margin: 25px 50px; }
 var g_renderer = new Renderer();
 
 // Initialization
-function main() 
+function main()
 {
-  initPhysics();
-  var eyePosition = [0, -2, 16];
-  var targetPosition = [0, -2, 0];
-  document.body.onkeydown = handleKey;
-  g_renderer.initialize(eyePosition, targetPosition, frameCallback);
+    initPhysics();
+    var eyePosition = [0, -2, 16];
+    var targetPosition = [0, -2, 0];
+    document.body.onkeydown = handleKey;
+    g_renderer.initialize(eyePosition, targetPosition, frameCallback);
 }
 
 // Physics initialization
-
 function initPhysics()
 {
-  for (var i = 0; i < 2; i++)
-  {
-    var body = new RigidBody();
-    var pos = new Float3(2*(i-1),0,0);
-    var rot = new Matrix3();
-    rot.setIdentity();
-    body.setBox(1, 1, 1, 1, pos, rot);
-    g_world.rigidBodies.push(body);
-  }
-  
-  var p0 = new Float3(-0.5, 0.5, 0.5);
-  var p1 = new Float3(0.5, 0.5, 0.5);
-  
-  g_world.springs.push(new Spring(
-    0, new Float3(-4,0,0), 
-    g_world.rigidBodies[0], p0, 0, 5.0, 0.3));
+    for (var i = 0; i < 2; i++)
+    {
+        var body = new RigidBody();
+        var pos = new Float3(2 * (i - 1), 0, 0);
+        var rot = new Matrix3();
+        rot.setIdentity();
+        body.setBox(1, 1, 1, 1, pos, rot);
+        g_world.rigidBodies.push(body);
+    }
 
-  g_world.springs.push(new Spring(
-    g_world.rigidBodies[0], p1, 
-    g_world.rigidBodies[1], p0, 0, 5.0, 0.3));
+    var p0 = new Float3(-0.5, 0.5, 0.5);
+    var p1 = new Float3(0.5, 0.5, 0.5);
 
-  g_world.springs.push(new Spring(
-    g_world.rigidBodies[1], p1, 
-    0, new Float3(4,0,0), 0, 5.0, 0.3));
+    g_world.springs.push(new Spring(
+        0, new Float3(-4, 0, 0), g_world.rigidBodies[0], p0, 0, 5.0, 0.3));
+
+    g_world.springs.push(new Spring(
+        g_world.rigidBodies[0], p1, g_world.rigidBodies[1], p0, 0, 5.0, 0.3));
+
+    g_world.springs.push(new Spring(
+        g_world.rigidBodies[1], p1, 0, new Float3(4, 0, 0), 0, 5.0, 0.3));
 }
 
 function handleKey(event)
 {
-	var k = event.keyCode;
-	var i;
-	if (k == '1'.charCodeAt(0))
-	  i = 0;
-	else	 if (k == '2'.charCodeAt(0))
-	  i = 1;
-	else	 if (k == '3'.charCodeAt(0))
-	  i = 2;
-	else
-	  return;
+    var k = event.keyCode;
+    var i;
+    if (k == '1'.charCodeAt(0))
+        i = 0;
+    else if (k == '2'.charCodeAt(0))
+        i = 1;
+    else if (k == '3'.charCodeAt(0))
+        i = 2;
+    else
+        return;
 
-	g_world.springs[i].enabled = !g_world.springs[i].enabled;
-	g_renderer.setSpringVisible(i, g_world.springs[i].enabled);
+    g_world.springs[i].enabled = !g_world.springs[i].enabled;
+    g_renderer.setSpringVisible(i, g_world.springs[i].enabled);
 }
 
 function step(dt)
 {
-  g_world.step(dt);
+    g_world.step(dt);
 }
 
 function frameCallback()
 {
-  step(1.0 / 30.0);
-  g_renderer.update();
+    step(1.0 / 30.0);
+    g_renderer.update();
 }
 
 </script>

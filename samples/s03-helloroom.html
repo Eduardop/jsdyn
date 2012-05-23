@@ -32,7 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 <head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <title>
-jsdyn sample 2: Hello, Room
+jsdyn sample 3: Hello, Room
 </title>
 <script type="text/javascript" src="../3rdparty/o3d-webgl/base.js"></script>
 <script type="text/javascript" src="../3rdparty/o3djs/base.js"></script>
@@ -47,113 +47,111 @@ var g_renderer = new Renderer();
 var g_running = true;
 
 // Initialization
-function main() 
+function main()
 {
-  initPhysics();
-  var eyePosition = [0, 0, 14];
-  var targetPosition = [0, -2, 0];
-  document.body.onkeydown = handleKey;
-  var bodyColors = [
-    [0.0,0.2,0.9,1], [0.0,0.2,0.9,1],
-    [0.8,0.7,0.7,1], [0.7,0.8,0.7,1],
-    [0.7,0.7,0.8,1], [0.8,0.8,0.7,1],
-    [0.8,0.7,0.8,1], [0.7,0.8,0.8,1]];
-  g_renderer.initialize(eyePosition, targetPosition, frameCallback,
-    bodyColors);
+    initPhysics();
+    var eyePosition = [0, 0, 14];
+    var targetPosition = [0, -2, 0];
+    document.body.onkeydown = handleKey;
+    var bodyColors = [[0.0, 0.2, 0.9, 1],
+                      [0.0, 0.2, 0.9, 1],
+                      [0.8, 0.7, 0.7, 1],
+                      [0.7, 0.8, 0.7, 1],
+                      [0.7, 0.7, 0.8, 1],
+                      [0.8, 0.8, 0.7, 1],
+                      [0.8, 0.7, 0.8, 1],
+                      [0.7, 0.8, 0.8, 1]];
+    g_renderer.initialize(eyePosition, targetPosition, frameCallback, bodyColors);
 }
 
 // Physics initialization
-
 function initPhysics()
 {
-  for (var i = 0; i < 2; i++)
-  {
-    var body = new RigidBody();
-    var pos = new Float3(2*(i-1),0,0);
-    //if (i == 0)
-    //  pos = new Float3(-2,-5,0);
-    var rot = new Matrix3();
-    rot.setIdentity();
-    body.setBox(1, 1, 1, 1, pos, rot);
-    g_world.rigidBodies.push(body);
-  }
-  
-  var wallPos = [
-    [-20, 0, 0], [20, 0, 0],
-    [0, -20, 0], [0, 20, 0],
-    [0, 0, -20], [0, 0, 20] ];
-
-  for (var i = 0; i < 6; i++)
-  {
-    var body = new RigidBody();
-    var pos = new Float3(wallPos[i][0], wallPos[i][1], wallPos[i][2]);
-    var rot = new Matrix3();
-    rot.setIdentity();
-    body.setBox(24, 24, 24, -1, pos, rot);
-    g_world.rigidBodies.push(body);    
-  }
-  
-  
-  var p0 = new Float3(-0.5, 0.5, 0.5);
-  var p1 = new Float3(0.5, 0.5, 0.5);
-  
-  var springKs = 5.0;
-  var springKd = 0.3;
+    for (var i = 0; i < 2; i++)
+    {
+        var body = new RigidBody();
+        var pos = new Float3(2 * (i - 1), 0, 0);
+        //if (i == 0)
+        //  pos = new Float3(-2,-5,0);
+        var rot = new Matrix3();
+        rot.setIdentity();
+        body.setBox(1, 1, 1, 1, pos, rot);
+        g_world.rigidBodies.push(body);
+    }
     
-  g_world.springs.push(new Spring(
-    0, new Float3(-4,0,0), 
-    g_world.rigidBodies[0], p0, 0, springKs, springKd));
-
-  g_world.springs.push(new Spring(
-    g_world.rigidBodies[0], p1, 
-    g_world.rigidBodies[1], p0, 0, springKs, springKd));
-
-  g_world.springs.push(new Spring(
-    g_world.rigidBodies[1], p1, 
-    0, new Float3(4,0,0), 0, springKs, springKd));
+    var wallPos = [[-20, 0, 0],
+                   [20,  0, 0],
+                   [0, -20, 0],
+                   [0,  20, 0],
+                   [0, 0, -20],
+                   [0, 0,  20]];
     
-  // g_world.springs[0].enabled = false;
-  // g_world.springs[1].enabled = false;
+    for (var i = 0; i < 6; i++)
+    {
+        var body = new RigidBody();
+        var pos = new Float3(wallPos[i][0], wallPos[i][1], wallPos[i][2]);
+        var rot = new Matrix3();
+        rot.setIdentity();
+        body.setBox(24, 24, 24, -1, pos, rot);
+        g_world.rigidBodies.push(body);
+    }
+    
+    var p0 = new Float3(-0.5, 0.5, 0.5);
+    var p1 = new Float3(0.5, 0.5, 0.5);
+    
+    var springKs = 5.0;
+    var springKd = 0.3;
+    
+    g_world.springs.push(new Spring(
+        0, new Float3(-4, 0, 0), g_world.rigidBodies[0], p0, 0, springKs, springKd));
+    
+    g_world.springs.push(new Spring(
+        g_world.rigidBodies[0], p1, g_world.rigidBodies[1], p0, 0, springKs, springKd));
+    
+    g_world.springs.push(new Spring(
+        g_world.rigidBodies[1], p1, 0, new Float3(4, 0, 0), 0, springKs, springKd));
+    
+    // g_world.springs[0].enabled = false;
+    // g_world.springs[1].enabled = false;
 }
 
 function handleKey(event)
 {
-  var k = event.keyCode;
-  var i;
-  if (k == '1'.charCodeAt(0))
-    i = 0;
-  else	 if (k == '2'.charCodeAt(0))
-    i = 1;
-  else	 if (k == '3'.charCodeAt(0))
-    i = 2;
-  else if (k == 'R'.charCodeAt(0))
-  {
-    g_running = true;
-    return;
-  }
-  else
-    return;
-
-  g_world.springs[i].enabled = !g_world.springs[i].enabled;
-  g_renderer.setSpringVisible(i, g_world.springs[i].enabled);
+    var k = event.keyCode;
+    var i;
+    if (k == '1'.charCodeAt(0))
+        i = 0;
+    else if (k == '2'.charCodeAt(0))
+        i = 1;
+    else if (k == '3'.charCodeAt(0))
+        i = 2;
+    else if (k == 'R'.charCodeAt(0))
+    {
+        g_running = true;
+        return;
+    }
+    else return;
+    
+    g_world.springs[i].enabled = !g_world.springs[i].enabled;
+    g_renderer.setSpringVisible(i, g_world.springs[i].enabled);
 }
 
 function step(dt)
 {
-  if (g_running)
-    g_world.step(dt);
+    if (g_running)
+        g_world.step(dt);
 }
 
 function frameCallback()
 {
-  step(1.0 / 30.0);
-  g_renderer.update();
+    step(1.0 / 30.0);
+    g_renderer.update();
 }
 
 </script>
 </head>
 <body onload="main()">
-<h1>jsdyn sample 2: Hello, 2 Cubes</h1>
+<h1>jsdyn sample 3: Hello, Room</h1>
 <p>Press 1, 2 or 3 to enable/disable springs.</p>
 <!-- Start of O3D plugin -->
 <div id="o3d" style="width: 800px; height: 600px;"></div>
