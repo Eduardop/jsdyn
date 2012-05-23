@@ -671,38 +671,42 @@ World.prototype.isPenetrating = function(con)
 World.prototype.step = function (dt)
 {
     //console.log("Step");
-    this.computeSpringForces();
-    for (var i = 0; i < this.rigidBodies.length; i++)
+    
+    var dt2 = dt / this.numSteps;
+    for (var j = 0; j < this.numSteps; j++)
     {
-        this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
-    }
-    
-    this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
-    this.integrateBodies(dt);
-    var contacts = this.detectContacts();
-    
-    if (contacts.length > 0)
-        console.log("collisions: " + contacts.length);
-    
-    var collided;
-    do
-    {
-        collided = false;
-        for (var i = 0; i < contacts.length; i++)
+        this.computeSpringForces();
+        for (var i = 0; i < this.rigidBodies.length; i++)
         {
-            var con = contacts[i];
-            if (this.isColliding(con))
+            this.rigidBodies[i].force.accum(this.gravity.mulScalar(this.rigidBodies[i].mass));
+        }
+        this.copyBodies(this.rigidBodiesPrevious, this.rigidBodies, false);
+        this.integrateBodies(dt2);
+        var contacts = this.detectContacts();
+        
+        //if (contacts.length > 0)
+        //    console.log("collisions: " + contacts.length);
+        
+        var collided;
+        do
+        {
+            collided = false;
+            for (var i = 0; i < contacts.length; i++)
             {
-                //collided = true;
-                this.handleCollision(con);
+                var con = contacts[i];
+                if (this.isColliding(con))
+                {
+                    //collided = true;
+                    this.handleCollision(con);
+                }
             }
         }
+        while (collided);
+        for (var i = 0; i < this.rigidBodies.length; i++)
+        {
+            this.rigidBodies[i].force = new Float3(0, 0, 0);
+            this.rigidBodies[i].torque = new Float3(0, 0, 0);
+        }
     }
-    while (collided);
 
-    for (var i = 0; i < this.rigidBodies.length; i++)
-    {
-        this.rigidBodies[i].force = new Float3(0, 0, 0);
-        this.rigidBodies[i].torque = new Float3(0, 0, 0);
-    }
 }
