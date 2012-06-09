@@ -313,6 +313,8 @@ function RigidBody()
     // -----------------------------------------------------
     this.force = new Float3(0, 0, 0);
     this.torque = new Float3(0, 0, 0);
+    this.prevF = new Float3(0, 0, 0);
+    this.prevT = new Float3(0, 0, 0);
 }
 
 RigidBody.prototype.setFrom = function (b)
@@ -330,6 +332,8 @@ RigidBody.prototype.setFrom = function (b)
     this.omega    = S_Float3.copyFrom(b.omega);
     this.force    = S_Float3.copyFrom(b.force);
     this.torque   = S_Float3.copyFrom(b.torque);
+    this.prevF    = S_Float3.copyFrom(b.prevF);
+    this.prevT    = S_Float3.copyFrom(b.prevT);
 }
 
 RigidBody.prototype.computeAux = function ()
@@ -354,6 +358,52 @@ RigidBody.prototype.integrateEuler = function (dt)
     var kdt = this.omega.mulScalar(g_world.kdw * dt);
     kdt.negate();
     this.L.accum(kdt);
+}
+
+RigidBody.prototype.integrateVelocityVerlet = function (dt)
+{
+    var kdf = this.v.mulScalar(g_world.kdl * dt);
+    kdf.negate();
+    this.P.accum(kdf);
+    var kdt = this.omega.mulScalar(g_world.kdw * dt);
+    kdt.negate();
+    this.L.accum(kdt);
+    
+    this.P.accum(this.force.add(this.prevF).mulScalar(0.5 * dt));
+    this.L.accum(this.torque.add(this.prevT).mulScalar(0.5 * dt));
+
+    var prevA = this.prevF.divScalar(this.mass);
+    this.x.accum(this.v.mulScalar(dt).add(prevA.mulScalar(0.5 * dt * dt)));
+    var m = this.omega.getSkewSymmMatrix().mul(this.R);
+    var alpha = this.Iinv.mulVector(this.prevT);
+    var malpha = alpha.getSkewSymmMatrix().mul(this.R);
+    this.R.accum(m.mulScalar(dt).add(malpha.mulScalar(0.5 * dt * dt)));
+    
+    this.prevF = this.force;
+    this.prevT = this.torque;
+}
+
+RigidBody.prototype.integrateLeapfrog = function (dt)
+{
+    var kdf = this.v.mulScalar(g_world.kdl * dt);
+    kdf.negate();
+    this.P.accum(kdf);
+    var kdt = this.omega.mulScalar(g_world.kdw * dt);
+    kdt.negate();
+    this.L.accum(kdt);
+    
+    this.Phalf.accum(this.force.mulScalar(dt));
+    this.Lhalf.accum(this.torque.mulScalar(dt));
+
+    var prevA = this.prevF.divScalar(this.mass);
+    this.x.accum(this.v.mulScalar(dt).add(prevA.mulScalar(0.5 * dt * dt)));
+    var m = this.omega.getSkewSymmMatrix().mul(this.R);
+    var alpha = this.Iinv.mulVector(this.prevT);
+    var malpha = alpha.getSkewSymmMatrix().mul(this.R);
+    this.R.accum(m.mulScalar(dt).add(malpha.mulScalar(0.5 * dt * dt)));
+    
+    this.prevF = this.force;
+    this.prevT = this.torque;
 }
 
 RigidBody.prototype.renormalizeR = function ()
@@ -602,7 +652,7 @@ World.prototype.handleCollision = function (con)
     var ra = con.pos.sub(con.bodya.x);
     var rb = con.pos.sub(con.bodyb.x);
     var vrel = con.normal.dot(padot.sub(pbdot));
-    var epsilon = 0.5;
+    var epsilon = 1;
     var num = -(1 + epsilon) * vrel;
     var term1 = 0;
     var term2 = 0;
